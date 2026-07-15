@@ -1,19 +1,24 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Gunflintia sp. — SCH-55-22B-004 · evostitch-ysp</title>
+<title>Gunflint Chert specimen viewer · evostitch-ysp</title>
 <style>
   html, body { margin: 0; height: 100%; background: #111; overflow: hidden; }
   #c { width: 100%; height: 100%; display: block; touch-action: none; }
-  #label {
+  #panel {
     position: fixed; top: 16px; left: 16px;
     color: #eee; font-family: -apple-system, sans-serif; font-size: 14px;
-    background: rgba(0,0,0,0.35); padding: 8px 14px; border-radius: 8px;
-    pointer-events: none;
+    background: rgba(0,0,0,0.4); padding: 10px 14px; border-radius: 8px;
+    max-width: min(340px, calc(100vw - 32px));
   }
-  #label .sub { font-size: 12px; opacity: 0.7; margin-top: 2px; }
+  #panel .sub { font-size: 12px; opacity: 0.7; margin-top: 3px; }
+  #modelSelect {
+    margin-top: 8px; width: 100%;
+    background: #222; color: #eee; border: 1px solid #444; border-radius: 6px;
+    font-size: 13px; padding: 6px 8px; font-family: inherit;
+  }
   #loading {
     position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
     color: #ccc; font-family: -apple-system, sans-serif; font-size: 15px;
@@ -23,8 +28,12 @@
 </head>
 <body>
 <canvas id="c"></canvas>
-<div id="label">Gunflintia sp.<div class="sub">Muestra SCH-55-22B-004 · arrastra para rotar, dos dedos/click derecho para desplazar</div></div>
-<div id="loading">Cargando modelo…</div>
+<div id="panel">
+  <div id="modelName">Loading…</div>
+  <div class="sub">Drag to rotate · two fingers / right-click drag to pan · scroll to zoom</div>
+  <select id="modelSelect"></select>
+</div>
+<div id="loading">Loading model…</div>
 <script type="importmap">
 {
   "imports": {
@@ -38,6 +47,33 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+// Add one entry here each time a new specimen is exported and its .glb is
+// copied into models/. The page picks up new entries automatically — no
+// other code changes needed.
+const MODELS = [
+  { id: 'gunflintia_001', label: 'Gunflintia sp. — Specimen SCH-55-22B-004', file: 'models/gunflintia_001.glb' },
+];
+
+const params = new URLSearchParams(location.search);
+const requestedId = params.get('model');
+const activeModel = MODELS.find(m => m.id === requestedId) || MODELS[0];
+
+const select = document.getElementById('modelSelect');
+MODELS.forEach((m) => {
+  const opt = document.createElement('option');
+  opt.value = m.id;
+  opt.textContent = m.label;
+  if (m.id === activeModel.id) opt.selected = true;
+  select.appendChild(opt);
+});
+select.addEventListener('change', () => {
+  const url = new URL(location.href);
+  url.searchParams.set('model', select.value);
+  location.href = url.toString();
+});
+
+document.getElementById('modelName').textContent = activeModel.label;
 
 const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
@@ -207,10 +243,12 @@ window.addEventListener('resize', resize);
 resize();
 
 const loader = new GLTFLoader();
-loader.load('models/gunflintia_001.glb', (gltf) => {
+loader.load(activeModel.file, (gltf) => {
   const model = gltf.scene;
 
   model.traverse((obj) => {
+    // Only specimens built with the wall+cytoplasm workflow have this mesh name;
+    // models without it just keep whatever material came from the glTF export.
     if (obj.isMesh && obj.name === 'gunflintia_citoplasm') {
       obj.material = cytoplasmMaterial;
     }
@@ -255,7 +293,7 @@ loader.load('models/gunflintia_001.glb', (gltf) => {
   document.getElementById('loading').style.opacity = '0';
   setTimeout(() => document.getElementById('loading').style.display = 'none', 400);
 }, undefined, (err) => {
-  document.getElementById('loading').textContent = 'No se pudo cargar el modelo. Intenta recargar la página.';
+  document.getElementById('loading').textContent = 'Could not load this model. Try reloading the page.';
   console.error('Error loading model:', err);
 });
 
